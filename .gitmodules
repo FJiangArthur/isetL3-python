@@ -1,0 +1,3 @@
+[submodule "external/inifinite-isp"]
+	path = external/inifinite-isp
+	url = git@github.com:10x-Engineers/Infinite-ISP.git
