@@ -30,3 +30,22 @@ For more instructions and references see this [temporary copy of the old wiki pa
 The L3 algorithm and software were developed by Steven Lansel and Brian Wandell at Stanford University.  The code in this repository was initially drafted by SL, edited to work with ISET by SL and BW, and then extensively developed, extended and tested by Haomiao Jiang with help from Qiyuan Tian, Steve Lansel and Brian Wandell.  To reference this software, please use the patent and paper cited at the top.
 
 
+
+## Python Port
+This repository originally contained MATLAB code.  A Python implementation has
+started under the `isetL3` package.  The port currently includes
+
+* `l3_root_path()` – helper to locate the repository root
+* Data classes (`L3DataCamera`, `L3DataSimulation`)
+* A simple classifier and ordinary least squares trainer
+* A very small renderer to apply learned kernels
+
+The code is only a minimal starting point but demonstrates the training and
+rendering workflow.  See the `example_python_usage.py` script below for a small
+example using NumPy arrays as data.
+
+```
+pip install numpy
+python example_python_usage.py
+```
+
