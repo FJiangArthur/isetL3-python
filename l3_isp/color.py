@@ -189,7 +189,7 @@ class BT2020Converter(ColorSpaceConverter):
         else:
             return image
     
-    def get_bt2020_primaries(self) -> Dict[str, Tuple[float, float]]:
+    def get_bt2020_primaries(self) -> dict:
         """Get BT.2020 color primaries.
         
         Returns:

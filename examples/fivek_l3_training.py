@@ -292,7 +292,7 @@ def main():
     parser = argparse.ArgumentParser(description="FiveK L3 Training")
     
     # Dataset arguments
-    parser.add_argument("--dataset_path", type=str, required=True,
+    parser.add_argument("--dataset_path", type=str, default="/tmp/fivek_demo",
                        help="Path to FiveK dataset")
     parser.add_argument("--download", action="store_true",
                        help="Download dataset if not present")

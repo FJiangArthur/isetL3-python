@@ -6,7 +6,14 @@ import os
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Any, Union
 import numpy as np
-from numba import jit
+try:
+    from numba import jit
+except ImportError:
+    # Fallback when numba is not available
+    def jit(nopython=True):
+        def decorator(func):
+            return func
+        return decorator
 
 
 def l3_root_path() -> str:

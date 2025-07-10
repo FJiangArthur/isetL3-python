@@ -68,9 +68,9 @@ class L3Config:
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary."""
         return {
-            "patch_size": self.patch_size,
+            "patch_size": list(self.patch_size),  # Convert tuple to list for YAML
             "num_cut_points": self.num_cut_points,
-            "cut_point_range": self.cut_point_range,
+            "cut_point_range": list(self.cut_point_range),  # Convert tuple to list
             "min_patches_per_class": self.min_patches_per_class,
             "use_infinite_isp": self.use_infinite_isp,
             "infinite_isp_config": self.infinite_isp_config,
@@ -95,6 +95,11 @@ class L3Config:
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> "L3Config":
         """Create config from dictionary."""
+        # Convert lists back to tuples
+        if "patch_size" in config_dict and isinstance(config_dict["patch_size"], list):
+            config_dict["patch_size"] = tuple(config_dict["patch_size"])
+        if "cut_point_range" in config_dict and isinstance(config_dict["cut_point_range"], list):
+            config_dict["cut_point_range"] = tuple(config_dict["cut_point_range"])
         return cls(**config_dict)
     
     @classmethod
@@ -192,6 +197,9 @@ class L3Pipeline:
         # Apply L3 processing if trained kernels are available
         if use_trained_kernels and self.trained_kernels is not None:
             processed_image = self._apply_l3_kernels(processed_image, sensor_info)
+        else:
+            # Fallback: simple Bayer to RGB conversion for testing
+            processed_image = self._simple_bayer_to_rgb(processed_image)
         
         # Apply color space conversion
         if self.color_converter is not None:
@@ -227,9 +235,58 @@ class L3Pipeline:
     
     def _apply_l3_kernels(self, image: np.ndarray, sensor_info: Optional[Dict[str, Any]]) -> np.ndarray:
         """Apply trained L3 kernels to image."""
-        # This would use the trained kernels from the L3 training process
-        # Placeholder implementation
-        return image
+        if self.trained_kernels is None or self.trainer is None:
+            return self._simple_bayer_to_rgb(image)
+        
+        # Use the L3 renderer
+        from .render import L3Render
+        renderer = L3Render()
+        
+        try:
+            return renderer.render(image, self.trainer)
+        except Exception as e:
+            print(f"Warning: L3 rendering failed: {e}")
+            return self._simple_bayer_to_rgb(image)
+    
+    def _simple_bayer_to_rgb(self, bayer_image: np.ndarray) -> np.ndarray:
+        """Simple Bayer to RGB conversion for testing."""
+        height, width = bayer_image.shape
+        rgb_image = np.zeros((height, width, 3), dtype=np.float32)
+        
+        # Simple RGGB pattern demosaicing
+        # R: (0,0), (0,2), (2,0), (2,2), ...
+        # G: (0,1), (1,0), (0,3), (1,2), ...  
+        # B: (1,1), (1,3), (3,1), (3,3), ...
+        
+        # Extract channels
+        r_mask = np.zeros((height, width), dtype=bool)
+        g_mask = np.zeros((height, width), dtype=bool)
+        b_mask = np.zeros((height, width), dtype=bool)
+        
+        r_mask[0::2, 0::2] = True  # R pixels
+        g_mask[0::2, 1::2] = True  # G pixels (first row)
+        g_mask[1::2, 0::2] = True  # G pixels (second row)
+        b_mask[1::2, 1::2] = True  # B pixels
+        
+        # Simple interpolation - just replicate values
+        rgb_image[:, :, 0] = bayer_image  # Use all values for R
+        rgb_image[:, :, 1] = bayer_image  # Use all values for G  
+        rgb_image[:, :, 2] = bayer_image  # Use all values for B
+        
+        # Apply masks to get approximate demosaicing
+        for y in range(height):
+            for x in range(width):
+                if r_mask[y, x]:
+                    rgb_image[y, x, 1] *= 0.8  # Reduce G in R pixels
+                    rgb_image[y, x, 2] *= 0.6  # Reduce B in R pixels
+                elif b_mask[y, x]:
+                    rgb_image[y, x, 0] *= 0.6  # Reduce R in B pixels
+                    rgb_image[y, x, 1] *= 0.8  # Reduce G in B pixels
+                else:  # G pixel
+                    rgb_image[y, x, 0] *= 0.7  # Reduce R in G pixels
+                    rgb_image[y, x, 2] *= 0.7  # Reduce B in G pixels
+        
+        return np.clip(rgb_image, 0, 1)
     
     def _apply_gamma_correction(self, image: np.ndarray) -> np.ndarray:
         """Apply gamma correction to image."""
@@ -308,6 +365,14 @@ class L3Pipeline:
         
         for raw_image, target_image in validation_data:
             processed_image = self.process_image(raw_image, use_trained_kernels=True)
+            
+            # Ensure compatible shapes for comparison
+            if len(processed_image.shape) == 2 and len(target_image.shape) == 3:
+                # Convert grayscale processed to RGB by replicating
+                processed_image = np.stack([processed_image] * 3, axis=2)
+            elif len(processed_image.shape) == 3 and len(target_image.shape) == 2:
+                # Convert target to RGB if needed
+                target_image = np.stack([target_image] * 3, axis=2)
             
             # Calculate MSE
             mse = np.mean((processed_image - target_image) ** 2)
